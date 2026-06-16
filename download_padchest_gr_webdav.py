@@ -26,6 +26,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--share-token", default=DEFAULT_SHARE_TOKEN)
     parser.add_argument("--output-dir", type=Path, default=Path("data/raw"))
     parser.add_argument("--retries", type=int, default=10)
+    parser.add_argument("--list-only", action="store_true", help="Only list remote files without downloading.")
     return parser.parse_args()
 
 
@@ -35,25 +36,43 @@ def propfind(session: requests.Session, base_url: str, remote_path: str) -> list
     response.raise_for_status()
 
     entries: list[dict[str, object]] = []
+    requested = remote_path.strip("/")
     root = ET.fromstring(response.content)
     for node in root.findall("d:response", DAV_NS):
         href = node.findtext("d:href", namespaces=DAV_NS)
         if not href:
             continue
-        name = href_to_name(href)
+        entry_remote_path = href_to_remote_path(href)
+        if entry_remote_path == requested:
+            continue
+        name = Path(entry_remote_path).name
+        if not name:
+            continue
         prop = node.find("d:propstat/d:prop", DAV_NS)
         if prop is None:
             continue
         resource_type = prop.find("d:resourcetype", DAV_NS)
         is_dir = resource_type is not None and resource_type.find("d:collection", DAV_NS) is not None
         size_text = prop.findtext("d:getcontentlength", default="0", namespaces=DAV_NS)
-        entries.append({"name": name, "is_dir": is_dir, "size": int(size_text or 0)})
+        entries.append(
+            {
+                "name": name,
+                "remote_path": entry_remote_path,
+                "is_dir": is_dir,
+                "size": int(size_text or 0),
+            }
+        )
     return entries
 
 
-def href_to_name(href: str) -> str:
-    path = unquote(urlparse(href).path.rstrip("/"))
-    return Path(path).name
+def href_to_remote_path(href: str) -> str:
+    path = unquote(urlparse(href).path)
+    marker = "/public.php/webdav/"
+    if marker in path:
+        return path.split(marker, 1)[1].strip("/")
+    if path.endswith("/public.php/webdav") or path.endswith("/public.php/webdav/"):
+        return ""
+    return Path(path.rstrip("/")).name
 
 
 def remote_url(base_url: str, remote_path: str) -> str:
@@ -63,13 +82,9 @@ def remote_url(base_url: str, remote_path: str) -> str:
 
 def walk(session: requests.Session, base_url: str, remote_path: str = "") -> list[dict[str, object]]:
     entries = propfind(session, base_url, remote_path)
-    current_name = Path(remote_path).name if remote_path else ""
     files: list[dict[str, object]] = []
     for entry in entries:
-        name = str(entry["name"])
-        if name == current_name:
-            continue
-        child_remote = f"{remote_path.rstrip('/')}/{name}".strip("/")
+        child_remote = str(entry["remote_path"])
         if entry["is_dir"]:
             files.extend(walk(session, base_url, child_remote))
         else:
@@ -167,6 +182,10 @@ def main() -> None:
 
     files = walk(session, args.base_url)
     print(f"Found {len(files)} files in public share.")
+    if args.list_only:
+        for item in files:
+            print(f"{format_bytes(int(item['size']))}\t{item['remote_path']}")
+        return
     for item in files:
         remote_path = str(item["remote_path"])
         output_path = args.output_dir / remote_path
