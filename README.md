@@ -159,3 +159,97 @@ y_max
 ```
 
 filtrado al mismo vocabulario top-10 + `Other`.
+
+## 6. Preparar box annotations
+
+Las etiquetas de caja pueden ser distintas de las categorias globales. Para esta rama se calculan las 10 labels de caja mas frecuentes y el resto pasa a `Other`.
+
+```bash
+python -m src.padchest_gr.prepare_box_manifest \
+  --boxes data/raw/box_annotations.tsv \
+  --out-tsv data/processed/boxes_top10_other.tsv \
+  --vocab-out data/processed/box_vocab.json \
+  --image-id-column image_id \
+  --image-path-column image_path \
+  --label-column label \
+  --x-min-column x_min \
+  --y-min-column y_min \
+  --x-max-column x_max \
+  --y-max-column y_max
+```
+
+Si las cajas estan en pixeles, anade columnas de tamano de imagen:
+
+```bash
+--image-width-column image_width --image-height-column image_height
+```
+
+El manifiesto genera coordenadas originales y una version discreta en grid `49x49`:
+
+```text
+grid_x_min
+grid_y_min
+grid_x_max
+grid_y_max
+```
+
+## 7. GradCAM vs bounding boxes
+
+Usa el checkpoint DenseNet de clasificacion y compara los mapas GradCAM contra las cajas que compartan el mismo `label_id` entre vocabulario de categorias y vocabulario de cajas.
+
+```bash
+python -m src.padchest_gr.compare_gradcam_boxes \
+  --boxes-tsv data/processed/boxes_top10_other.tsv \
+  --box-vocab-json data/processed/box_vocab.json \
+  --category-vocab-json data/processed/category_vocab.json \
+  --densenet-checkpoint runs/densenet_top10_other/best.pt \
+  --out-tsv runs/gradcam_box_comparison.tsv \
+  --device cuda
+```
+
+Metricas por imagen/label:
+
+```text
+gradcam_iou
+pointing_hit
+```
+
+Esta comparativa es inicial: si las labels de caja y categoria no coinciden por nombre normalizado, no se fuerza un mapeo artificial.
+
+## 8. Qwen para grounding 49x49
+
+Esta rama usa labels de caja como tokens especiales cerrados:
+
+```text
+<finding_box_label_1>
+...
+<finding_box_label_10>
+```
+
+Cada label tiene un MLP de dos capas que proyecta su heatmap `49x49` al espacio hidden de Qwen. Desde los hidden states previos a la respuesta se predice:
+
+- presencia multilabel de las 10 labels de caja;
+- una matriz de calor `49x49` por label.
+
+```bash
+python -m src.padchest_gr.train_qwen_box_grounding \
+  --boxes-tsv data/processed/boxes_top10_other.tsv \
+  --box-vocab-json data/processed/box_vocab.json \
+  --out-dir runs/qwen_box_grounding \
+  --model-id Qwen/Qwen2.5-1.5B \
+  --epochs 10 \
+  --batch-size 2 \
+  --device cuda
+```
+
+Loss total:
+
+```text
+loss =
+  lambda_label   * BCEWithLogitsLoss(label_prediction, labels_10)
++ lambda_heatmap * BCEWithLogitsLoss(heatmap_prediction, heatmaps_10x49x49)
++ lambda_lm      * next_token_loss(box_label_tokens)
++ lambda_clip    * label_slot_to_token_alignment
+```
+
+La evaluacion no lee los tokens generados como clasificacion. Usa hidden states de los slots de label antes de la respuesta.

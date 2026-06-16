@@ -37,6 +37,23 @@ IMAGE_PATH_COLUMN_CANDIDATES = (
     "image_filename",
 )
 
+BOX_LABEL_COLUMN_CANDIDATES = (
+    "box_label",
+    "bbox_label",
+    "label",
+    "labels",
+    "finding",
+    "finding_label",
+    "box_category",
+)
+
+X_MIN_COLUMN_CANDIDATES = ("x_min", "xmin", "x1", "left")
+Y_MIN_COLUMN_CANDIDATES = ("y_min", "ymin", "y1", "top")
+X_MAX_COLUMN_CANDIDATES = ("x_max", "xmax", "x2", "right")
+Y_MAX_COLUMN_CANDIDATES = ("y_max", "ymax", "y2", "bottom")
+WIDTH_COLUMN_CANDIDATES = ("width", "w")
+HEIGHT_COLUMN_CANDIDATES = ("height", "h")
+
 
 def read_table(path: Path) -> pd.DataFrame:
     suffix = path.suffix.lower()

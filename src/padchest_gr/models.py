@@ -49,6 +49,21 @@ class CategoryProjectors(nn.Module):
         return torch.stack(slots, dim=1)
 
 
+class HeatmapProjectors(nn.Module):
+    def __init__(self, grid_size: int, qwen_dim: int, num_labels: int = 10, hidden_dim: int = 1024) -> None:
+        super().__init__()
+        self.grid_size = grid_size
+        in_dim = grid_size * grid_size
+        self.projectors = nn.ModuleList([TwoLayerMLP(in_dim, hidden_dim, qwen_dim) for _ in range(num_labels)])
+
+    def forward(self, heatmaps: torch.Tensor) -> torch.Tensor:
+        slots = []
+        for label_idx, projector in enumerate(self.projectors):
+            flat = heatmaps[:, label_idx].flatten(start_dim=1)
+            slots.append(projector(flat))
+        return torch.stack(slots, dim=1)
+
+
 class QwenHiddenClassifier(nn.Module):
     def __init__(self, qwen_dim: int, num_outputs: int, hidden_dim: int | None = None, dropout: float = 0.1) -> None:
         super().__init__()
@@ -63,6 +78,24 @@ class QwenHiddenClassifier(nn.Module):
     def forward(self, category_hidden: torch.Tensor) -> torch.Tensor:
         pooled = category_hidden.mean(dim=1)
         return self.net(pooled)
+
+
+class QwenHeatmapDecoder(nn.Module):
+    def __init__(self, qwen_dim: int, grid_size: int, hidden_dim: int | None = None, dropout: float = 0.1) -> None:
+        super().__init__()
+        hidden_dim = hidden_dim or qwen_dim
+        self.grid_size = grid_size
+        self.net = nn.Sequential(
+            nn.Linear(qwen_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, grid_size * grid_size),
+        )
+
+    def forward(self, label_hidden: torch.Tensor) -> torch.Tensor:
+        batch, labels, _ = label_hidden.shape
+        logits = self.net(label_hidden)
+        return logits.view(batch, labels, self.grid_size, self.grid_size)
 
 
 def multilabel_clip_loss(
