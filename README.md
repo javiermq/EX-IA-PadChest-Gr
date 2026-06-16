@@ -16,7 +16,7 @@ python -m pip install -r requirements.txt
 ## 1. Descargar PadChest-GR
 
 ```bash
-python download_padchest_gr.py --output data/PadChest-GR.zip
+python download_padchest_gr.py --output data/PadChest-GR.zip --list-zip
 ```
 
 Si hace falta otra URL:
@@ -24,12 +24,22 @@ Si hace falta otra URL:
 ```bash
 python download_padchest_gr.py \
   --url "https://b2drop.bsc.es/nextcloud/s/PadChest-GR/download" \
-  --output data/PadChest-GR.zip
+  --output data/PadChest-GR.zip \
+  --list-zip
+```
+
+El descargador escribe primero en `data/PadChest-GR.zip.part`. Si Nextcloud corta la conexion, vuelve a ejecutar el mismo comando y continuara desde los bytes descargados.
+
+Para inspeccionar o extraer el ZIP:
+
+```bash
+python inspect_padchest_zip.py --zip data/PadChest-GR.zip
+python inspect_padchest_zip.py --zip data/PadChest-GR.zip --extract-to data/raw
 ```
 
 ## 2. Preparar top-10 + Other
 
-Cuando tengas extraido el archivo de `category annotations`, genera el manifiesto:
+Cuando tengas extraido el archivo real de `category annotations`, genera el manifiesto. Sustituye `data/raw/category_annotations.tsv` por el nombre que aparezca al inspeccionar el ZIP:
 
 ```bash
 python -m src.padchest_gr.prepare_top10_manifest \
@@ -75,6 +85,7 @@ python -m src.padchest_gr.train_densenet_baseline \
   --out-dir runs/densenet_top10_other \
   --epochs 20 \
   --batch-size 16 \
+  --image-size 384 \
   --device cuda
 ```
 
@@ -117,6 +128,7 @@ python -m src.padchest_gr.train_qwen_category_tokens \
   --model-id Qwen/Qwen2.5-1.5B \
   --epochs 10 \
   --batch-size 2 \
+  --image-size 384 \
   --device cuda \
   --freeze-densenet
 ```
@@ -204,6 +216,7 @@ python -m src.padchest_gr.compare_gradcam_boxes \
   --category-vocab-json data/processed/category_vocab.json \
   --densenet-checkpoint runs/densenet_top10_other/best.pt \
   --out-tsv runs/gradcam_box_comparison.tsv \
+  --image-size 384 \
   --device cuda
 ```
 
@@ -239,6 +252,7 @@ python -m src.padchest_gr.train_qwen_box_grounding \
   --model-id Qwen/Qwen2.5-1.5B \
   --epochs 10 \
   --batch-size 2 \
+  --image-size 384 \
   --device cuda
 ```
 

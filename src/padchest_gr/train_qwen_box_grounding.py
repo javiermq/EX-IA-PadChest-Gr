@@ -32,7 +32,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--token-lr", type=float, default=1e-5)
-    parser.add_argument("--image-size", type=int, default=224)
+    parser.add_argument("--image-size", type=int, default=384)
     parser.add_argument("--max-length", type=int, default=96)
     parser.add_argument("--projector-hidden-dim", type=int, default=1024)
     parser.add_argument("--val-fraction", type=float, default=0.15)

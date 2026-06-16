@@ -26,7 +26,7 @@ class PadChestCategoryDataset(Dataset):
         manifest_tsv: str | Path,
         vocab_json: str | Path,
         image_root: str | Path | None = None,
-        image_size: int = 224,
+        image_size: int = 384,
         train: bool = False,
     ) -> None:
         self.df = pd.read_csv(manifest_tsv, sep="\t").fillna("")

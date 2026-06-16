@@ -27,7 +27,7 @@ class PadChestBoxDataset(Dataset):
         boxes_tsv: str | Path,
         vocab_json: str | Path,
         image_root: str | Path | None = None,
-        image_size: int = 224,
+        image_size: int = 384,
         train: bool = False,
     ) -> None:
         self.boxes = pd.read_csv(boxes_tsv, sep="\t").fillna("")

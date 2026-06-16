@@ -22,7 +22,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--densenet-checkpoint", type=Path, required=True)
     parser.add_argument("--out-tsv", type=Path, required=True)
     parser.add_argument("--image-root", type=Path, default=None)
-    parser.add_argument("--image-size", type=int, default=224)
+    parser.add_argument("--image-size", type=int, default=384)
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
