@@ -30,6 +30,12 @@ python download_padchest_gr.py \
 
 El descargador escribe primero en `data/PadChest-GR.zip.part`. Si Nextcloud corta la conexion, vuelve a ejecutar el mismo comando y continuara desde los bytes descargados.
 
+Si el servidor responde `El servidor no acepto resume`, el ZIP dinamico de Nextcloud no se puede reanudar. En ese caso usa WebDAV publico, que descarga archivo a archivo:
+
+```bash
+python download_padchest_gr_webdav.py --output-dir data/raw
+```
+
 Para inspeccionar o extraer el ZIP:
 
 ```bash
