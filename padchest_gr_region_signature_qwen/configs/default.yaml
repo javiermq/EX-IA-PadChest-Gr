@@ -5,7 +5,7 @@ model:
   crop_size: 336
   max_rois: 5
   hidden_dim: 1024
-  qwen_hidden_dim: 2048
+  qwen_hidden_dim: 1280
   use_qwen: true
   load_qwen_weights: true
   require_qwen: true

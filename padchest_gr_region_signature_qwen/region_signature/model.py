@@ -281,7 +281,7 @@ class RegionSignatureQwenPrototype(nn.Module):
         )
         self.visual_encoder = SimpleVisualEncoder(hidden_dim=hidden_dim, grid_size=grid_size)
         self.qwen = OptionalQwenWrapper(cfg)
-        self.qwen_projector = nn.Linear(int(cfg.get("qwen_hidden_dim", hidden_dim)), hidden_dim)
+        self.qwen_projector = nn.LazyLinear(hidden_dim)
         self.signature_projector = RegionSignatureProjector(self.signature_encoder.feature_dim + num_classes + 2, hidden_dim)
         self.fusion = FusionModule(hidden_dim)
         self.heatmap_head = nn.Linear(hidden_dim, num_classes)
