@@ -211,8 +211,7 @@ class OptionalQwenWrapper(nn.Module):
             visual_tokens = visual(pixel_values, grid_thw=image_grid_thw)
         except TypeError:
             visual_tokens = visual(pixel_values, image_grid_thw)
-        if isinstance(visual_tokens, tuple):
-            visual_tokens = visual_tokens[0]
+        visual_tokens = self._unwrap_visual_output(visual_tokens)
         if visual_tokens.ndim == 2:
             lengths = self._visual_lengths(image_grid_thw, visual_tokens.shape[0], len(pil_images), base)
             visual_tokens = torch.split(visual_tokens, lengths, dim=0)
@@ -221,6 +220,20 @@ class OptionalQwenWrapper(nn.Module):
         if visual_tokens.ndim == 3:
             return torch.stack([self._resample_sequence(tokens) for tokens in visual_tokens], dim=0).float()
         raise RuntimeError(f"Unexpected Qwen visual token shape: {tuple(visual_tokens.shape)}")
+
+    def _unwrap_visual_output(self, visual_output: Any) -> torch.Tensor:
+        if torch.is_tensor(visual_output):
+            return visual_output
+        if hasattr(visual_output, "last_hidden_state") and visual_output.last_hidden_state is not None:
+            return visual_output.last_hidden_state
+        if hasattr(visual_output, "hidden_states") and visual_output.hidden_states:
+            return visual_output.hidden_states[-1]
+        if hasattr(visual_output, "pooler_output") and visual_output.pooler_output is not None:
+            pooled = visual_output.pooler_output
+            return pooled.unsqueeze(1) if pooled.ndim == 2 else pooled
+        if isinstance(visual_output, tuple) and visual_output:
+            return self._unwrap_visual_output(visual_output[0])
+        raise RuntimeError(f"Could not extract tensor from Qwen visual output type: {type(visual_output)}")
 
     def _visual_lengths(self, image_grid_thw: torch.Tensor | None, total: int, batch: int, base: nn.Module) -> list[int]:
         if image_grid_thw is None:
