@@ -254,15 +254,21 @@ class OptionalQwenWrapper(nn.Module):
 
     def _visual_lengths(self, image_grid_thw: torch.Tensor | None, total: int, batch: int, base: nn.Module) -> list[int]:
         if image_grid_thw is None:
-            return [total // batch] * batch
+            return self._even_split_lengths(total, batch)
         spatial_merge_size = getattr(getattr(base, "config", None), "spatial_merge_size", 2)
         lengths = []
         for row in image_grid_thw:
             t, h, w = [int(x) for x in row.tolist()]
             lengths.append(max(1, t * (h // spatial_merge_size) * (w // spatial_merge_size)))
         if sum(lengths) != total:
-            return [total // batch] * batch
+            return self._even_split_lengths(total, batch)
         return lengths
+
+    @staticmethod
+    def _even_split_lengths(total: int, batch: int) -> list[int]:
+        base = total // batch
+        remainder = total % batch
+        return [base + (1 if i < remainder else 0) for i in range(batch)]
 
     def _resample_sequence(self, tokens: torch.Tensor) -> torch.Tensor:
         target = self.grid_size * self.grid_size
