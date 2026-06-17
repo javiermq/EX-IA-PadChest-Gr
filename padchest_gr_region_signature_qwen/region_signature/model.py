@@ -202,7 +202,12 @@ class OptionalQwenWrapper(nn.Module):
         if not self.enabled or self.processor is None or any(image is None for image in pil_images):
             raise RuntimeError("Qwen visual tokens requested but Qwen processor/images are unavailable.")
         image_prompt = "<|vision_start|><|image_pad|><|vision_end|>"
-        inputs = self.processor(text=[image_prompt] * len(pil_images), images=pil_images, return_tensors="pt")
+        inputs = self.processor(
+            text=[image_prompt] * len(pil_images),
+            images=pil_images,
+            padding=True,
+            return_tensors="pt",
+        )
         base = self._base_model()
         visual = self._find_visual_module()
         visual_device = next(visual.parameters()).device
