@@ -13,6 +13,8 @@ model:
   bnb_4bit_quant_type: "nf4"
   bnb_4bit_compute_dtype: "bf16"
   bnb_4bit_use_double_quant: true
+  freeze_qwen: true
+  qwen_visual_no_grad: true
   use_lora: true
   lora_r: 8
   lora_alpha: 16

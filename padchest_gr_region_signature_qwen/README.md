@@ -51,6 +51,8 @@ python infer_single_image.py --config configs/default.yaml --image path/to/image
 
 El wrapper de Qwen carga `Qwen/Qwen2.5-VL-3B-Instruct` por defecto con `load_qwen_weights: true`, `require_qwen: true` y `load_in_4bit: true`. Si Qwen no puede cargarse, el entrenamiento real falla de forma explicita. El modo `--dummy_data` desactiva esa carga para tests rapidos sin descargar el modelo.
 
+Por defecto, Qwen visual corre congelado (`freeze_qwen: true`, `qwen_visual_no_grad: true`) para evitar OOM y entrenar el resto del pipeline: DenseNet signatures, fusion, heatmaps, ROI heads y bbox head. Cuando el pipeline sea estable, se puede activar entrenamiento parcial de Qwen/LoRA desactivando esos flags.
+
 Flujo interno real:
 
 1. `pil_image` -> `AutoProcessor` de Qwen.

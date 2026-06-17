@@ -110,6 +110,7 @@ class OptionalQwenWrapper(nn.Module):
         self.processor = None
         self.hidden_dim = int(cfg.get("qwen_hidden_dim", cfg["hidden_dim"]))
         self.grid_size = int(cfg["grid_size"])
+        self.qwen_visual_no_grad = bool(cfg.get("qwen_visual_no_grad", True))
         if not cfg.get("use_qwen", False) or not cfg.get("load_qwen_weights", False):
             return
         try:
@@ -156,6 +157,10 @@ class OptionalQwenWrapper(nn.Module):
                 except Exception as exc:
                     if cfg.get("require_qwen", False):
                         raise RuntimeError(f"Qwen loaded, but LoRA setup failed: {exc}") from exc
+            if cfg.get("freeze_qwen", True):
+                for param in self.qwen.parameters():
+                    param.requires_grad = False
+                self.qwen.eval()
             self.enabled = True
             # TODO: Inject Region Signature Tokens directly into Qwen's multimodal sequence
             # before selected language layers. For now, we consume Qwen visual hidden states
@@ -207,10 +212,11 @@ class OptionalQwenWrapper(nn.Module):
             image_grid_thw = image_grid_thw.to(visual_device)
         dtype = next(visual.parameters()).dtype
         pixel_values = pixel_values.to(dtype=dtype)
-        try:
-            visual_tokens = visual(pixel_values, grid_thw=image_grid_thw)
-        except TypeError:
-            visual_tokens = visual(pixel_values, image_grid_thw)
+        if self.qwen_visual_no_grad:
+            with torch.no_grad():
+                visual_tokens = self._run_visual(visual, pixel_values, image_grid_thw)
+        else:
+            visual_tokens = self._run_visual(visual, pixel_values, image_grid_thw)
         visual_tokens = self._unwrap_visual_output(visual_tokens)
         if visual_tokens.ndim == 2:
             lengths = self._visual_lengths(image_grid_thw, visual_tokens.shape[0], len(pil_images), base)
@@ -220,6 +226,12 @@ class OptionalQwenWrapper(nn.Module):
         if visual_tokens.ndim == 3:
             return torch.stack([self._resample_sequence(tokens) for tokens in visual_tokens], dim=0).float()
         raise RuntimeError(f"Unexpected Qwen visual token shape: {tuple(visual_tokens.shape)}")
+
+    def _run_visual(self, visual: nn.Module, pixel_values: torch.Tensor, image_grid_thw: torch.Tensor | None) -> Any:
+        try:
+            return visual(pixel_values, grid_thw=image_grid_thw)
+        except TypeError:
+            return visual(pixel_values, image_grid_thw)
 
     def _unwrap_visual_output(self, visual_output: Any) -> torch.Tensor:
         if torch.is_tensor(visual_output):

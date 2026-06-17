@@ -202,7 +202,8 @@ def main() -> None:
         model.move_task_modules(device)
     else:
         model.to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=float(cfg["training"]["lr"]))
+    trainable_params = [param for param in model.parameters() if param.requires_grad]
+    optimizer = torch.optim.AdamW(trainable_params, lr=float(cfg["training"]["lr"]))
     best_val = float("inf")
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     for epoch in range(1, int(cfg["training"]["epochs"]) + 1):
