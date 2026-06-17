@@ -169,15 +169,37 @@ class OptionalQwenWrapper(nn.Module):
     def _base_model(self) -> nn.Module:
         return self.qwen.get_base_model() if hasattr(self.qwen, "get_base_model") else self.qwen
 
+    def _find_visual_module(self) -> nn.Module:
+        candidates = [
+            self.qwen,
+            self._base_model(),
+            getattr(self.qwen, "base_model", None),
+            getattr(getattr(self.qwen, "base_model", None), "model", None),
+            getattr(getattr(getattr(self.qwen, "base_model", None), "model", None), "model", None),
+            getattr(self._base_model(), "model", None),
+            getattr(getattr(self._base_model(), "model", None), "model", None),
+        ]
+        for candidate in candidates:
+            if candidate is not None and hasattr(candidate, "visual"):
+                return getattr(candidate, "visual")
+        for name, module in self.qwen.named_modules():
+            if name.endswith("visual") and hasattr(module, "patch_embed"):
+                return module
+        for name, module in self.qwen.named_modules():
+            if "visual" in name and hasattr(module, "patch_embed"):
+                return module
+        raise RuntimeError(
+            "Loaded Qwen model does not expose a discoverable visual module. "
+            "Run `python - <<'PY' ... named_modules ... PY` to inspect the wrapper layout."
+        )
+
     def forward(self, pil_images: list[Any], device: torch.device) -> torch.Tensor:
         if not self.enabled or self.processor is None or any(image is None for image in pil_images):
             raise RuntimeError("Qwen visual tokens requested but Qwen processor/images are unavailable.")
         image_prompt = "<|vision_start|><|image_pad|><|vision_end|>"
         inputs = self.processor(text=[image_prompt] * len(pil_images), images=pil_images, return_tensors="pt")
         base = self._base_model()
-        visual = getattr(base, "visual", None)
-        if visual is None:
-            raise RuntimeError("Loaded Qwen model does not expose a .visual module.")
+        visual = self._find_visual_module()
         visual_device = next(visual.parameters()).device
         pixel_values = inputs["pixel_values"].to(visual_device)
         image_grid_thw = inputs.get("image_grid_thw")
