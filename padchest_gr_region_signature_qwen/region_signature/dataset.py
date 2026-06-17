@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import random
+import hashlib
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
@@ -50,6 +51,8 @@ def _read_records(annotation_path: str | Path) -> list[dict[str, Any]]:
 def _coerce_image_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if not records:
         return []
+    if "findings" in records[0] and "ImageID" in records[0]:
+        return _coerce_grounded_reports(records)
     per_box = {"x1", "y1", "x2", "y2"}.issubset(records[0].keys()) or "box_label" in records[0]
     if not per_box:
         return records
@@ -81,6 +84,50 @@ def _coerce_image_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]
         item["labels"] = sorted(item["labels"])
         result.append(item)
     return result
+
+
+def _coerce_grounded_reports(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Convert PadChest-GR grounded_reports_*.json into image-level ROI records."""
+    out: list[dict[str, Any]] = []
+    for item in records:
+        image_id = str(item.get("ImageID") or item.get("image_id") or "").strip()
+        if not image_id:
+            continue
+        boxes: list[list[float]] = []
+        box_labels: list[str] = []
+        labels_global: set[str] = set()
+        for finding in item.get("findings", []) or []:
+            finding_labels = [str(label).strip() for label in finding.get("labels", []) if str(label).strip()]
+            if not finding_labels:
+                continue
+            finding_boxes = finding.get("boxes") or []
+            if not finding_boxes:
+                finding_boxes = finding.get("extra_boxes") or []
+            labels_global.update(finding_labels)
+            for box in finding_boxes:
+                for label in finding_labels:
+                    boxes.append([float(v) for v in box])
+                    box_labels.append(label)
+        if not boxes:
+            continue
+        out.append(
+            {
+                "image_id": image_id,
+                "image_path": image_id,
+                "study_id": item.get("StudyID"),
+                "split": str(item.get("split") or _deterministic_split(image_id)),
+                "labels": sorted(labels_global),
+                "boxes": boxes,
+                "box_labels": box_labels,
+                "source_format": "padchest_gr_grounded_reports",
+            }
+        )
+    return out
+
+
+def _deterministic_split(image_id: str, val_fraction: float = 0.1) -> str:
+    bucket = int(hashlib.md5(image_id.encode("utf-8")).hexdigest()[:8], 16) % 10000
+    return "val" if bucket < int(val_fraction * 10000) else "train"
 
 
 def load_annotation_records(annotation_path: str | Path) -> list[dict[str, Any]]:
