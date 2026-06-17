@@ -215,6 +215,7 @@ class PadChestGRRegionDataset(Dataset):
         self.grid_size = grid_size
         self.max_rois = max_rois
         self.transform = build_transforms(image_size, train=train)
+        self._image_index: dict[str, Path] | None = None
         self.items = self._filter(records)
 
     def _filter(self, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -246,9 +247,7 @@ class PadChestGRRegionDataset(Dataset):
 
     def __getitem__(self, idx: int) -> dict[str, Any]:
         item = self.items[idx]
-        image_path = Path(str(item.get("image_path") or item.get("path") or item.get("filename")))
-        if not image_path.is_absolute():
-            image_path = self.image_dir / image_path
+        image_path = self._resolve_image_path(str(item.get("image_path") or item.get("path") or item.get("filename")))
         image = Image.open(image_path).convert("RGB")
         image_tensor = self.transform(image)
         boxes = torch.zeros(self.max_rois, 4)
@@ -273,6 +272,31 @@ class PadChestGRRegionDataset(Dataset):
             "heatmaps_gt": heatmaps,
             "metadata": {k: v for k, v in item.items() if k not in {"boxes", "box_labels"}},
         }
+
+    def _resolve_image_path(self, value: str) -> Path:
+        image_path = Path(value)
+        if image_path.is_absolute() and image_path.exists():
+            return image_path
+        direct = self.image_dir / image_path
+        if direct.exists():
+            return direct
+        by_name = self._get_image_index().get(image_path.name)
+        if by_name and by_name.exists():
+            return by_name
+        raise FileNotFoundError(
+            f"Image not found: {value}. Tried {direct}. "
+            f"Check data.image_dir or extract PadChest_GR.zip.001 into the configured images directory."
+        )
+
+    def _get_image_index(self) -> dict[str, Path]:
+        if self._image_index is None:
+            suffixes = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
+            self._image_index = {
+                path.name: path
+                for path in self.image_dir.rglob("*")
+                if path.is_file() and path.suffix.lower() in suffixes
+            }
+        return self._image_index
 
 
 def collate_region_batch(batch: list[dict[str, Any]]) -> dict[str, Any]:
