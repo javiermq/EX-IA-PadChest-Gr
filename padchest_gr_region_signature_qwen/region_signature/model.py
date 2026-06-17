@@ -172,7 +172,8 @@ class OptionalQwenWrapper(nn.Module):
     def forward(self, pil_images: list[Any], device: torch.device) -> torch.Tensor:
         if not self.enabled or self.processor is None or any(image is None for image in pil_images):
             raise RuntimeError("Qwen visual tokens requested but Qwen processor/images are unavailable.")
-        inputs = self.processor(images=pil_images, return_tensors="pt")
+        image_prompt = "<|vision_start|><|image_pad|><|vision_end|>"
+        inputs = self.processor(text=[image_prompt] * len(pil_images), images=pil_images, return_tensors="pt")
         base = self._base_model()
         visual = getattr(base, "visual", None)
         if visual is None:
