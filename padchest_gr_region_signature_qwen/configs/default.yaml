@@ -1,0 +1,53 @@
+model:
+  qwen_name: "Qwen/Qwen2.5-VL-3B-Instruct"
+  image_size: 448
+  grid_size: 14
+  crop_size: 336
+  max_rois: 5
+  hidden_dim: 1024
+  qwen_hidden_dim: 2048
+  use_qwen: true
+  load_qwen_weights: true
+  require_qwen: true
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_compute_dtype: "bf16"
+  bnb_4bit_use_double_quant: true
+  use_lora: true
+  lora_r: 8
+  lora_alpha: 16
+  lora_dropout: 0.05
+  densenet_pretrained: true
+
+data:
+  root: "data"
+  image_dir: "data/images"
+  annotations: "data/annotations.json"
+  train_split: "train"
+  val_split: "val"
+  num_roi_classes: 10
+
+training:
+  epochs: 20
+  batch_size: 1
+  grad_accum_steps: 8
+  lr: 2e-4
+  mixed_precision: bf16
+  num_workers: 4
+  seed: 42
+  device: auto
+
+monitoring:
+  sample_every_n_batches: 500
+  sample_num_examples: 3
+  save_batch_visuals: true
+
+loss:
+  lambda_hm: 1.0
+  lambda_box: 1.0
+  lambda_roi: 1.0
+
+outputs:
+  logs_dir: "logs"
+  outputs_dir: "outputs"
+  checkpoints_dir: "checkpoints"
